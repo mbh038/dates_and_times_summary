@@ -1,0 +1,106 @@
+---
+title: "Check ins"
+author: "your name"
+date: "18/01/2026"
+format: html
+editor: visual
+execute: 
+  warning: false
+  message: false
+  echo: true
+---
+
+### Preliminaries
+This is a quarto notebook. It contains human readable text interspersed with code chunks. Here the code is in R but it could be in Python. You may be reading a rendered version of the notebook, in html or pdf form.
+
+The code presumes you have a Project folder and inside that a subfolder called `data` within which you store the Excel file with the check-in data. This notebook should be stored somewhere within the Project folder. I usually put it and any others in a subfolder called `notebooks`.
+
+To run the notebook you will need to have installed R (the engine) and RStudio (the IDE - the place through which you edit and run the code). You can do that from here: https://posit.co/download/rstudio-desktop/
+
+First you should install R, then RStudio for desktop. Both are open source and free. Once that is done, open RStudio.
+
+(Posit, the company that produces RStudio, is now pushing a newer IDE called Positron. I have barely tried it, but it is more techy than RStudio and RStudio will be around for a long time. It will do just fine.)
+
+Then, go to File/Open Project and navigate to the folder for this project. Click on the .RProj file that you find there. RStudio should then restart and you will see the file structure of the project folder in the bottom right pane. Open the `notebooks` subfolder and  click on check_ins.qmd (this file).
+
+This will show you a 'notebook' in the top left pane
+
+Each code chunk can be run individially by clicking the green arrow in its top right, or the whole notebook can be run a once from the Run tab/Run All.
+
+You can render the notebook by pressing the Render button at the top. The rendered output can be in html or pdf or Word (I've never done that) form.
+
+The summary tables can be saved as spreadsheets if you wish.
+
+Once you have the hang of this, you can delete whatever text you don't want to appear in the final report.
+
+First we load packages that we will use. If you have never used these before you will need to install them. You only need to do this once and it can be done in various ways - the most direct is to use the `install.packages()` function in the console pane. This is the pane below this one, in the bottom left of the RStudio window. Note the command prompt `>` If you wanted to install the tidy verse package you would type\
+\
+\``>install.packages("tidyverse")`\`
+
+and so on.
+
+> 
+
+```{r}
+# load packages - these are like add-ins in Excel
+library(tidyverse)
+library(here)
+library(readxl)
+```
+Now you load the data from the Excel spreadsheet. This code chunk assumes the spreadsheet in a subfolder called `data` and is called `checkins.xlsx`.
+The data is presumed to be on the worksheet called `location-visits_114`. Amend all these as appropriate.
+
+We save the data in R in an object called `checkins_raw` and set the column name to be `date_and_time`
+```{r}
+# get the data
+filepath <- here("data","checkins.xlsx")
+checkins_raw <- read_excel(filepath, sheet = "location-visits_114")
+names(checkins_raw)[1] = "date_and_time"
+# glimpse(checkins_raw)
+```
+
+Nw we create additional variables that tell us the year, day, weekday, hour and two hour block of each check in. We save al this in a new object called `checkins`.
+```{r}
+checkins <- checkins_raw |>
+  mutate(year = year(date_and_time),
+         month = month(date_and_time),
+         day = day(date_and_time),
+         weekday = wday(date_and_time),
+         hour = hour(date_and_time),
+         twohourblock =  2 * floor(hour/2))
+# glimpse(checkins)
+```
+
+Now we produce whatever summaries we want.
+
+Here, we group by year, month, day, weekday and two hour block, and report the number of check-ins for each block.
+```{r}
+checkin_summary <- checkins |>
+  group_by(year,month,day,weekday,twohourblock) |>
+  summarise(n = n()) |>
+  ungroup()
+checkin_summary
+```
+Now we plot the data. Here we do it as a faceted plot, one facet for each weekday. You could generate a separate set of these for each month if you want, or whatever.
+
+```{r}
+checkin_summary |>
+  ggplot(aes(x = twohourblock, y = n)) +
+  geom_line(colour = "grey80") +
+  geom_point(colour = "blue") +
+  scale_x_continuous(breaks = seq(6,20,2)) +
+  labs(x = "Two hour block start time",
+       y = "Check-ins") +
+  facet_wrap(~weekday, nrow = 1) +
+  theme_classic() +
+  theme(strip.background  = element_blank())
+```
+### Output the data to summary spreadsheets
+
+Save in a subfolder called `output`.
+
+```{r}
+write_filepath <- here("output",str_c("check_in_summary","_",today()))
+write_excel_csv(checkin_summary,write_filepath)
+```
+
